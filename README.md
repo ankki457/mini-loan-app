@@ -32,11 +32,13 @@ The **Mini Loan App** is a web-based application for managing loan applications,
 ### Admin Functionality
 1. **Approve Loans**  
    - Admins can change loans from `PENDING` to `APPROVED`.
+   - Admin User Name - admin@example.com
+   - Admin Password - admin123
 
 ---
 
 ## Technical Stack
-- **Frontend**: HTML5, CSS, React.js
+- **Frontend**: HTML5, CSS, React.js, Bootstrap
 - **Backend**: Node.js, Express.js
 - **Database**: MongoDB
 - **Authentication**: JWT-based authentication
