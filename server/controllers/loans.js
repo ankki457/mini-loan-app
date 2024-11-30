@@ -1,107 +1,80 @@
 import Loan from "../models/loan.js";
 
+// Get all loans (Admin or User)
 export const getLoans = async (req, res) => {
   try {
     let loans;
     if (req.user.user_type === "admin") {
       loans = await Loan.find().populate("user_id");
     } else {
-      loans = await Loan.find({ user_id: req.user._id });
+      loans = await Loan.find({ user_id: req.user.id }).populate("user_id");
     }
-    return res.status(200).json({ Loans: loans });
-  } catch (error) {
-    console.error(error);
-    return res.status(400).json({ error: error });
+    console.log("Fetched Loans:", loans); 
+    res.json({ Loans: loans });
+  } catch (err) {
+    console.error("Error fetching loans:", err);
+    res.status(500).send("Server Error");
   }
 };
 
-export const createLoan = async (req, res) => {
-  try {
-    const { amount, terms } = req.body;
-    const loan = new Loan({
-      user_id: req.user._id,
-      amount,
-      terms,
-      repayments: [],
-      remainingAmount: amount,
-    });
+// Update loan status (Admin)
+export const updateLoanStatus = async (req, res) => {
+  const { loanId, status } = req.body;
 
-    // Generate scheduled repayments
-    const repaymentAmount = (amount / terms).toFixed(2);
-    const today = new Date();
-    for (let i = 0; i < terms; i++) {
-      const repaymentDate = new Date(today);
-      repaymentDate.setDate(today.getDate() + 7 * (i + 1));
-      loan.repayments.push({
-        date: repaymentDate,
-        amount: repaymentAmount,
-      });
-    }
+  console.log("Updating loan status", { loanId, status });
 
-    await loan.save();
-    return res.status(201).json({ loan });
-  } catch (error) {
-    console.error(error);
-    return res.status(400).json({ error });
+  if (!["approved", "rejected", "pending"].includes(status)) {
+    console.log("Invalid status:", status); 
+    return res.status(400).send("Invalid status.");
   }
-};
 
-export const updateLoan = async (req, res) => {
   try {
-    if (req.user.user_type !== "admin")
-      throw "You are not authorized to approve loans.";
-
-    const { id, status } = req.body;
-
-    if (status !== "approved" && status !== "pending") {
-      throw "Invalid status update!";
-    }
-
-    const loan = await Loan.findByIdAndUpdate(id, { status }, { new: true });
-
-    if (!loan) throw "Loan not found!";
-    return res
-      .status(200)
-      .json({ msg: "Loan status updated successfully!", loan });
-  } catch (error) {
-    console.error(error);
-    return res.status(400).json({ error });
-  }
-};
-
-export const repayLoan = async (req, res) => {
-  try {
-    const { loanId, installmentId, amount } = req.body;
-
-    if (!loanId || !installmentId || !amount)
-      throw "Incomplete repayment details.";
-
     const loan = await Loan.findById(loanId);
-
-    if (!loan) throw "Loan not found!";
-
-    const repayment = loan.repayments.id(installmentId);
-
-    if (!repayment || repayment.status === "paid")
-      throw "Invalid repayment installment.";
-
-    if (amount < repayment.amount)
-      throw "Repayment amount is less than scheduled amount.";
-
-    repayment.status = "paid";
-    loan.remainingAmount -= repayment.amount;
-
-    const allPaid = loan.repayments.every((rep) => rep.status === "paid");
-
-    if (allPaid) {
-      loan.status = "paid";
+    if (!loan) {
+      console.log("Loan not found for ID:", loanId); 
+      return res.status(404).send("Loan not found.");
     }
-
+    loan.status = status;
     await loan.save();
-
-    return res.status(200).json({ msg: "Repayment successful!", loan });
-  } catch (error) {
-    console.error(error);
-    return res.status(400).json({ error });
+    console.log("Loan status updated:", loan); 
+    res.json({ message: "Loan status updated successfully" });
+  } catch (err) {
+    console.error("Error updating loan status:", err);
+    res.status(500).send("Server Error");
   }
 };
+
+// Repay loan
+export const repayLoan = async (req, res) => {
+  const { loanId, installmentId } = req.body;
+
+  // Log the repayment attempt
+  console.log("Repaying loan:", { loanId, installmentId });
+
+  try {
+    const loan = await Loan.findById(loanId);
+    if (!loan) {
+      console.log("Loan not found for ID:", loanId); 
+      return res.status(404).send("Loan not found.");
+    }
+
+    const installment = loan.repayments.find(
+      (repay) => repay._id.toString() === installmentId
+    );
+    if (!installment || installment.status === "paid") {
+      console.log("Installment already paid or not found:", installment);
+      return res.status(400).send("Installment already paid or invalid.");
+    }
+
+    installment.status = "paid";
+    loan.remainingAmount -= installment.amount;
+
+    await loan.save();
+    console.log("Installment paid successfully:", loan); // Log successful repayment
+    res.json({ message: "Installment paid successfully" });
+  } catch (err) {
+    console.error("Error during repayment:", err);
+    res.status(500).send("Server Error");
+  }
+};
+v
